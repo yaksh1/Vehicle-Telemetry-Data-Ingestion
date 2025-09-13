@@ -1,0 +1,42 @@
+server:
+  port: 8082 # Run on a different port than the producer
+
+spring:
+  application:
+    name: telemetry-consumer
+  # --- Kafka Consumer Configuration ---
+  kafka:
+    consumer:
+      bootstrap-servers: kafka:29092
+      # This ID identifies the group of consumers. All consumers with the same ID
+      # work together to process a topic.
+      group-id: telemetry-group
+      # Automatically start reading from the earliest available message if no offset is stored.
+      auto-offset-reset: earliest
+      # The 'deserializer' is the reverse of the producer's 'serializer'.
+      # It turns the raw bytes from Kafka back into usable Java objects.
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring:
+          json:
+            # THIS IS THE FIX: Tell the deserializer to IGNORE type info in message headers.
+            use:
+              type:
+                headers: false
+            # Tell the JsonDeserializer which class to build from the incoming JSON.
+            value:
+              default:
+                type: com.yaksh.telemetry_consumer.model.VehicleTelemetry
+            # A security measure to only allow deserialization of trusted packages.
+            # UPDATED: Changed to '*' to bypass the package mismatch error for now.
+            trusted:
+              packages: "*"
+
+  # --- Redis Configuration ---
+  data:
+    redis:
+      # 'redis' is the service name we defined in our docker-compose.yml
+      host: redis
+      # 6379 is the default port for Redis
+      port: 6379

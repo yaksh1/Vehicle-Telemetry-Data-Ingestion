@@ -1,0 +1,12 @@
+.idea/
+*.iml
+*.iws
+.classpath
+.project
+.settings/
+build.gradle.kts.lock.toml
+.gradle/
+build/
+*.log
+logs/
+.env

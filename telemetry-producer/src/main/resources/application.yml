@@ -1,0 +1,15 @@
+server:
+  port: 8081 # Runs the producer on a different port than the consumer
+
+spring:
+  application:
+    name: telemetry-producer
+  kafka:
+    producer:
+      # This is the address of our Kafka broker inside the Docker network.
+      bootstrap-servers: kafka:29092
+      # We need to tell Kafka how to turn our data into bytes.
+      # The 'key' is the vehicle ID, which is a simple String.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # The 'value' is our VehicleTelemetry object, which we'll send as JSON.
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer

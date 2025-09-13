@@ -1,0 +1,25 @@
+# Filename: delete_worktree.toml
+
+prompt = """
+
+ARGUMENTS: $ARGUEMENTS
+
+Your task is to commit the changes of a worktree to github then merge the worktree with main. Then delete the worktree.
+
+execute below commands in shell
+
+`git worktree remove $ARGUMENTS` in trees/$ARGUEMENTS directory
+`git add .`
+`git commit -m"APPROPRIATE COMMIT MESSAGE"
+Then come to main folder outside trees.
+
+`git checkout main`
+`git pull origin main`
+`git merge $ARGUEMENTS`
+`git push origin main`
+
+Now delete worktree
+
+`git worktree remove $ARGUMENTS`
+
+"""
