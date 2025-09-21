@@ -1,42 +1,41 @@
+// com/yaksh/telemetry_consumer/config/RedisConfig.java (Updated)
+
 package com.yaksh.telemetry_consumer.config;
 
-import com.yaksh.telemetry_consumer.model.VehicleTelemetry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
 public class RedisConfig {
 
     /**
-     * Creates a customized RedisTemplate bean.
-     * Spring Boot provides a RedisTemplate by default, but it's configured to handle
-     * raw bytes, which isn't very human-readable or easy to work with.
+     * Creates a customized RedisTemplate bean optimized for working with Hashes.
      *
-     * This custom configuration tells Redis how to "serialize" our data:
-     * - The Key (e.g., "vehicle:vehicle-1") will be a plain string.
-     * - The Value (the VehicleTelemetry object) will be stored as a JSON string.
+     * This custom configuration sets serializers for:
+     * - Key (e.g., "vehicle:vehicle-1"): Stored as a plain string.
+     * - Hash Key (e.g., "speed", "fuelLevel"): Stored as a plain string.
+     * - Hash Value (e.g., 75.5, 90.2): Stored as JSON, allowing for different
+     * data types (numbers, strings, etc.) within the same hash.
      *
      * @param connectionFactory Provided automatically by Spring Boot.
      * @return A fully configured RedisTemplate.
      */
     @Bean
-    public RedisTemplate<String, VehicleTelemetry> redisTemplate(RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, VehicleTelemetry> template = new RedisTemplate<>();
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        // Configure the serializer for the key
-        template.setKeySerializer(new StringRedisSerializer());
+        // Use StringSerializer for top-level keys and hash keys
+        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+        template.setKeySerializer(stringSerializer);
+        template.setHashKeySerializer(stringSerializer);
 
-        // Configure the serializer for the value
-        template.setValueSerializer(new Jackson2JsonRedisSerializer<>(VehicleTelemetry.class));
-
-        // Also configure hash key and hash value serializers
-        template.setHashKeySerializer(new StringRedisSerializer());
-        template.setHashValueSerializer(new Jackson2JsonRedisSerializer<>(VehicleTelemetry.class));
+        // Use a generic JSON serializer for hash values to handle diverse types
+        template.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
 
         template.afterPropertiesSet();
         return template;

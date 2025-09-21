@@ -14,7 +14,7 @@ import java.util.Random;
 public class TelemetrySimulator {
 
     private static final Logger log = LoggerFactory.getLogger(TelemetrySimulator.class);
-    private static final int FLEET_SIZE = 15; // Let's simulate 10 vehicles
+    private static final int FLEET_SIZE = 5; // Let's simulate 5 vehicles
 
     private final TelemetryProducerService producerService;
     private final List<String> vehicleIds = new ArrayList<>();

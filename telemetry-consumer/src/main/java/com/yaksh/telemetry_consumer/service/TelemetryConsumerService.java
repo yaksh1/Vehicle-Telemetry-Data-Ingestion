@@ -1,13 +1,15 @@
+// com/yaksh/telemetry_consumer/service/TelemetryConsumerService.java (Updated)
+
 package com.yaksh.telemetry_consumer.service;
 
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yaksh.telemetry_consumer.model.VehicleTelemetry;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
+
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -15,33 +17,38 @@ public class TelemetryConsumerService {
 
     private static final String VEHICLE_KEY_PREFIX = "vehicle:";
 
-    private final RedisTemplate<String, VehicleTelemetry> redisTemplate;
+    // The template is now more generic
+    private final RedisTemplate<String, Object> redisTemplate;
 
-    public TelemetryConsumerService(RedisTemplate<String, VehicleTelemetry> redisTemplate) {
+    // Inject ObjectMapper to convert the POJO to a Map
+    private final ObjectMapper objectMapper;
+
+    public TelemetryConsumerService(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     /**
-     * Listens to the Kafka topic for new telemetry data.
-     * This method is the entry point for all incoming messages.
+     * Listens to the Kafka topic and saves telemetry data as a Redis Hash.
      *
      * @param telemetry The VehicleTelemetry object deserialized from the Kafka message.
      */
     @KafkaListener(topics = "vehicle-telemetry", groupId = "telemetry-group")
     public void consumeTelemetry(VehicleTelemetry telemetry) {
         log.info("Received telemetry for vehicle [{}]: {}", telemetry.vehicleId(), telemetry);
-
-        // Define the key we'll use to store this vehicle's data in Redis
         String redisKey = VEHICLE_KEY_PREFIX + telemetry.vehicleId();
 
         try {
-            // Use the RedisTemplate to save the data.
-            // opsForValue() gets the interface for simple Key-Value operations.
-            // The .set() command will either create a new entry or overwrite an existing one.
-            redisTemplate.opsForValue().set(redisKey, telemetry);
-            log.debug("Updated Redis cache for key [{}].", redisKey);
+            // Convert the VehicleTelemetry object into a Map
+            Map<String, Object> telemetryMap = objectMapper.convertValue(telemetry, Map.class);
+
+            // Use opsForHash() and putAll() to save the map as a Redis Hash.
+            // This will create or overwrite the entire hash at the specified key.
+            redisTemplate.opsForHash().putAll(redisKey, telemetryMap);
+
+            log.debug("Updated Redis Hash for key [{}].", redisKey);
         } catch (Exception e) {
-            log.error("Error writing to Redis for key [{}]: {}", redisKey, e.getMessage());
+            log.error("Error writing to Redis Hash for key [{}]: {}", redisKey, e.getMessage());
         }
     }
 }
