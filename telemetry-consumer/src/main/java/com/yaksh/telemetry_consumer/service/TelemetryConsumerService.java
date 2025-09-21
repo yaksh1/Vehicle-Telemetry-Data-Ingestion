@@ -35,7 +35,7 @@ public class TelemetryConsumerService {
      */
     @KafkaListener(topics = "vehicle-telemetry", groupId = "telemetry-group")
     public void consumeTelemetry(VehicleTelemetry telemetry) {
-        log.info("Received telemetry for vehicle [{}]: {}", telemetry.vehicleId(), telemetry);
+        log.info("Received telemetry(T) for vehicle [{}]: {}", telemetry.vehicleId(), telemetry);
         String redisKey = VEHICLE_KEY_PREFIX + telemetry.vehicleId();
 
         try {

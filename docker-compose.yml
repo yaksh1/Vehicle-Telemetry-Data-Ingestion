@@ -42,6 +42,8 @@ services:
   consumer:
     container_name: consumer
     # Build the image from the telemetry-consumer directory
+    ports:
+      - "8082:8082"
     build:
       context: ./telemetry-consumer
       dockerfile: Dockerfile

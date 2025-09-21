@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Fleet Dashboard</title>
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha26-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f0f2f5;
+        }
+        #map {
+            flex-grow: 1; /* Map takes all available space */
+        }
+        .header {
+            background-color: #fff;
+            padding: 10px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5em;
+            color: #333;
+        }
+        .stats {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        #status {
+            font-weight: 500;
+            padding: 8px 12px;
+            border-radius: 15px;
+            color: #fff;
+            transition: background-color 0.3s ease;
+        }
+        #vehicle-count {
+            font-weight: 500;
+            color: #555;
+            font-size: 0.9em;
+        }
+        .status-connecting { background-color: #f39c12; }
+        .status-connected { background-color: #2ecc71; }
+        .status-disconnected { background-color: #e74c3c; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Live Fleet Dashboard</h1>
+    <div class="stats">
+        <div id="vehicle-count">Vehicles: 0</div>
+        <div id="status" class="status-connecting">Connecting...</div>
+    </div>
+</div>
+<div id="map"></div>
+
+<!-- Leaflet.js JavaScript -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+
+<script>
+        // --- DEBUGGING CHECKLIST ---
+        // If you see "Disconnected", follow these steps:
+        //
+        // 1. OPEN BROWSER DEV TOOLS:
+        //    - Right-click on the page -> "Inspect" -> Go to the "Console" tab.
+        //    - Look for an error like "WebSocket connection to 'ws://localhost:8082/telemetry' failed".
+        //    - This error is your most important clue!
+        //
+        // 2. CHECK DOCKER CONTAINERS:
+        //    - Open your terminal and run: `docker-compose ps`
+        //    - Make sure the 'consumer' container is in the 'running' or 'Up' state.
+        //    - If it's not running or is restarting, check its logs.
+        //
+        // 3. CHECK CONSUMER LOGS:
+        //    - In your terminal, run: `docker-compose logs consumer`
+        //    - Look for any errors. Does it say the application failed to start?
+        //    - Is there an error connecting to Redis or Kafka?
+        //    - Do you see the Spring Boot startup logo?
+        //
+        // 4. CHECK @EnableScheduling ANNOTATION:
+        //    - In your `telemetry-consumer` project, make sure your main Application class
+        //      has the `@EnableScheduling` annotation. Without it, the broadcaster won't run.
+        //
+        //      @SpringBootApplication
+        //      @EnableScheduling  // <-- MAKE SURE THIS IS HERE
+        //      public class TelemetryConsumerApplication { ... }
+        // ------------------------------------
+
+        // --- 1. INITIALIZE THE MAP ---
+        const map = L.map('map').setView([40.914, -73.123], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const vehicleMarkers = new Map();
+        const statusDiv = document.getElementById('status');
+        const vehicleCountDiv = document.getElementById('vehicle-count');
+
+        // --- 2. SETUP THE WEBSOCKET CONNECTION ---
+        const socketUrl = 'ws://localhost:8082/telemetry';
+        let socket;
+
+        function connect() {
+            console.log('Attempting to connect to WebSocket...');
+            statusDiv.textContent = 'Connecting...';
+            statusDiv.className = 'status-connecting';
+
+            socket = new WebSocket(socketUrl);
+
+            socket.onopen = function(event) {
+                console.log('WebSocket connection established.');
+                statusDiv.textContent = 'Connected';
+                statusDiv.className = 'status-connected';
+            };
+
+            socket.onclose = function(event) {
+                console.log('WebSocket connection closed. Reconnecting in 3 seconds...');
+                statusDiv.textContent = 'Disconnected';
+                statusDiv.className = 'status-disconnected';
+                vehicleCountDiv.textContent = 'Vehicles: 0';
+                setTimeout(connect, 3000);
+            };
+
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                socket.close();
+            };
+
+            socket.onmessage = function(event) {
+                try {
+                    const vehicles = JSON.parse(event.data);
+                    updateMap(vehicles);
+                } catch (e) {
+                    console.error('Error parsing message data:', e);
+                }
+            };
+        }
+
+        // --- 4. THE CORE MAP UPDATE LOGIC ---
+        function updateMap(vehicles) {
+            vehicleCountDiv.textContent = `Vehicles: ${vehicles.length}`;
+            const receivedVehicleIds = new Set();
+
+            vehicles.forEach(vehicle => {
+                const { vehicleId, latitude, longitude, speed, fuelLevel } = vehicle;
+                receivedVehicleIds.add(vehicleId);
+
+                if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+                    console.warn('Invalid coordinates for vehicle:', vehicleId);
+                    return;
+                }
+
+                const popupContent = `
+                    <b>Vehicle ID:</b> ${vehicleId}<br>
+                    <b>Speed:</b> ${parseFloat(speed).toFixed(2)} mph<br>
+                    <b>Fuel:</b> ${parseFloat(fuelLevel).toFixed(2)}%
+                `;
+
+                if (vehicleMarkers.has(vehicleId)) {
+                    const marker = vehicleMarkers.get(vehicleId);
+                    marker.setLatLng([latitude, longitude]);
+                    marker.getPopup().setContent(popupContent);
+                } else {
+                    const marker = L.marker([latitude, longitude]).addTo(map)
+                        .bindPopup(popupContent);
+                    vehicleMarkers.set(vehicleId, marker);
+                }
+            });
+
+            // Clean up markers for vehicles that are no longer in the data feed
+            for (const vehicleId of vehicleMarkers.keys()) {
+                if (!receivedVehicleIds.has(vehicleId)) {
+                    map.removeLayer(vehicleMarkers.get(vehicleId));
+                    vehicleMarkers.delete(vehicleId);
+                }
+            }
+        }
+
+        // --- 5. START THE CONNECTION ---
+        connect();
+
+    </script>
+</body>
+</html>
+
