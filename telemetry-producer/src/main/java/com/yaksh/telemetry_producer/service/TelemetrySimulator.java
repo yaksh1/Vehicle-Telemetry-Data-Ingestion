@@ -1,7 +1,10 @@
 package com.yaksh.telemetry_producer.service;
-import com.yaksh.telemetry_producer.model.VehicleTelemetry;
+
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import com.yaksh.telemetry_producer.model.VehicleTelemetry;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Random;
@@ -23,8 +26,9 @@ public class TelemetrySimulator {
             double lat,
             double lon,
             double latIncrement, // How much to move north/south each step
-            double lonIncrement  // How much to move east/west each step
-    ) {}
+            double lonIncrement // How much to move east/west each step
+    ) {
+    }
 
     public TelemetrySimulator(TelemetryProducerService producerService) {
         this.producerService = producerService;
@@ -43,13 +47,15 @@ public class TelemetrySimulator {
         fleetState.put("LIRR-Express-44", new VehicleState("LIRR-Express-44", 40.9023, -73.1300, 0, -0.00020));
 
         // Vehicle 3: Starts on Nicolls Road and moves Southeast
-        fleetState.put("Nicolls-Patrol-07", new VehicleState("Nicolls-Patrol-07", 40.9160, -73.1160, -0.00012, 0.00012));
+        fleetState.put("Nicolls-Patrol-07",
+                new VehicleState("Nicolls-Patrol-07", 40.9160, -73.1160, -0.00012, 0.00012));
 
         // You can easily add more vehicles here if you want.
     }
 
     /**
-     * This method runs every second, updates the state of ALL vehicles in the fleet,
+     * This method runs every second, updates the state of ALL vehicles in the
+     * fleet,
      * and sends their new telemetry data to Kafka.
      */
     @Scheduled(fixedRate = 1000)
@@ -64,7 +70,7 @@ public class TelemetrySimulator {
             double newLat = currentState.lat() + currentState.latIncrement();
             double newLon = currentState.lon() + currentState.lonIncrement();
 
-            // (Optional) Add logic here to make vehicles "bounce" off boundaries 
+            // (Optional) Add logic here to make vehicles "bounce" off boundaries
             // or change direction to make the simulation run forever.
 
             // 3. Create the updated state object
@@ -73,15 +79,14 @@ public class TelemetrySimulator {
                     newLat,
                     newLon,
                     currentState.latIncrement(),
-                    currentState.lonIncrement()
-            );
+                    currentState.lonIncrement());
 
             // 4. Update the state in our map for the next iteration
             fleetState.put(vehicleId, newState);
 
             // 5. Simulate some dynamic data for speed and fuel
             double speed = 65 + (random.nextDouble() * 10 - 5); // Speed fluctuates around 65
-            double fuelLevel = 80 - (random.nextDouble() * 2);  // Fuel slowly decreases
+            double fuelLevel = 80 - (random.nextDouble() * 2); // Fuel slowly decreases
 
             // 6. Create the telemetry object to be sent
             VehicleTelemetry telemetry = VehicleTelemetry.create(
@@ -89,8 +94,7 @@ public class TelemetrySimulator {
                     newState.lat(),
                     newState.lon(),
                     speed,
-                    fuelLevel
-            );
+                    fuelLevel);
 
             // 7. Send the data to Kafka
             producerService.sendTelemetry(telemetry);

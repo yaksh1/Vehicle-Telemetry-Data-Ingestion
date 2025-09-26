@@ -29,6 +29,7 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
+
   producer:
     container_name: producer
     # Tell Docker Compose to build the image from the telemetry-producer directory
