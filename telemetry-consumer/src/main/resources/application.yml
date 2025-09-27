@@ -2,6 +2,17 @@ server:
   port: 8082 # Run on a different port than the producer
 
 spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/telemetry_db
+    username: telemetry_user
+    password: root
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate # Checks if the table matches our Entity class
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   application:
     name: telemetry-consumer
   # --- Kafka Consumer Configuration ---

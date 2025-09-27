@@ -12,10 +12,10 @@ public record VehicleTelemetry(
         double longitude,
         double speed,
         double fuelLevel,
-        long timestamp
+        Instant timestamp
 ) {
     // We can add a convenience factory method if we want
     public static VehicleTelemetry create(String vehicleId, double lat, double lon, double speed, double fuel) {
-        return new VehicleTelemetry(vehicleId, lat, lon, speed, fuel, Instant.now().toEpochMilli());
+        return new VehicleTelemetry(vehicleId, lat, lon, speed, fuel, Instant.now());
     }
 }

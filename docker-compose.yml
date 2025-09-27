@@ -1,6 +1,23 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: telemetry-postgres
+    environment:
+      POSTGRES_USER: telemetry_user
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: telemetry_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telemetry_user -d telemetry_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     container_name: zookeeper
@@ -49,6 +66,9 @@ services:
       context: ./telemetry-consumer
       dockerfile: Dockerfile
     depends_on:
+      - postgres
       - kafka
       - redis # Consumer needs both Kafka and Redis to be ready
     restart: on-failure
+volumes:
+  pgdata:

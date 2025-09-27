@@ -3,7 +3,9 @@
 package com.yaksh.telemetry_consumer.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yaksh.telemetry_consumer.entity.TelemetryLogEntity;
 import com.yaksh.telemetry_consumer.model.VehicleTelemetry;
+import com.yaksh.telemetry_consumer.repository.TelemetryLogRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -13,6 +15,7 @@ import java.util.Map;
 
 @Service
 @Slf4j
+
 public class TelemetryConsumerService {
 
     private static final String VEHICLE_KEY_PREFIX = "vehicle:";
@@ -23,9 +26,12 @@ public class TelemetryConsumerService {
     // Inject ObjectMapper to convert the POJO to a Map
     private final ObjectMapper objectMapper;
 
-    public TelemetryConsumerService(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
+    private final TelemetryLogRepository telemetryLogRepository;
+
+    public TelemetryConsumerService(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper, TelemetryLogRepository telemetryLogRepository) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.telemetryLogRepository = telemetryLogRepository;
     }
 
     /**
@@ -35,20 +41,33 @@ public class TelemetryConsumerService {
      */
     @KafkaListener(topics = "vehicle-telemetry", groupId = "telemetry-group")
     public void consumeTelemetry(VehicleTelemetry telemetry) {
-        log.info("Received telemetry(T) for vehicle [{}]: {}", telemetry.vehicleId(), telemetry);
+        log.info("Received telemetry for vehicle [{}]: {}", telemetry.vehicleId(), telemetry);
+
+        // --- 1. Existing Logic: Update Redis Cache (for the live dashboard) ---
         String redisKey = VEHICLE_KEY_PREFIX + telemetry.vehicleId();
-
         try {
-            // Convert the VehicleTelemetry object into a Map
             Map<String, Object> telemetryMap = objectMapper.convertValue(telemetry, Map.class);
-
-            // Use opsForHash() and putAll() to save the map as a Redis Hash.
-            // This will create or overwrite the entire hash at the specified key.
             redisTemplate.opsForHash().putAll(redisKey, telemetryMap);
-
             log.debug("Updated Redis Hash for key [{}].", redisKey);
         } catch (Exception e) {
             log.error("Error writing to Redis Hash for key [{}]: {}", redisKey, e.getMessage());
+        }
+
+        // --- 2. New Logic: Persist to PostgreSQL (for historical data) ---
+        try {
+            TelemetryLogEntity logEntity = new TelemetryLogEntity();
+            // Map data from the incoming message to the entity
+            logEntity.setVehicleId(telemetry.vehicleId());
+            logEntity.setLatitude(telemetry.latitude());
+            logEntity.setLongitude(telemetry.longitude());
+            logEntity.setSpeed(telemetry.speed());
+            logEntity.setFuelLevel(telemetry.fuelLevel());
+            logEntity.setTimestamp(telemetry.timestamp());
+
+            telemetryLogRepository.save(logEntity);
+            log.debug("Saved telemetry to PostgreSQL for vehicle [{}].", telemetry.vehicleId());
+        } catch (Exception e) {
+            log.error("Error writing to PostgreSQL for vehicle [{}]: {}", telemetry.vehicleId(), e.getMessage());
         }
     }
 }
